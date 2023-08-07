@@ -21,7 +21,7 @@ exports.getAllBook = (req, res, next) => {
  */
 exports.getOneBook = (req, res, next) => {
     Book.findOne({ _id: req.params.id })
-        .then((books) => res.status(200).json(books))
+        .then((book) => res.status(200).json(book))
         .catch(error => res.status(400).json({ error }));
 }
 
@@ -38,6 +38,7 @@ exports.getBestratingBook = (req, res, next) => {
 
 exports.createBook = (req, res, next) => {
 
+    console.log("createBook")
     console.log(req.body)
     const bookObject = JSON.parse(req.body.book);
     delete bookObject._id;
@@ -96,11 +97,12 @@ jour, et le livre renvoyé en réponse de la requête.
  * @param {*} next 
  */
 exports.ratingBook = (req, res, next) => {
+    console.log("req.bodyratingBook")
     console.log(req.body)
 
+    const ratingObject = { ...req.body };
 
-    const bookObject = { ...req.body };
-
+    console.log("req.params.id");
     console.log(req.params.id);
 
     Book.findOne({ _id: req.params.id })
@@ -110,10 +112,20 @@ exports.ratingBook = (req, res, next) => {
             if (book.ratings.find(r => r.userId == req.auth.userId) != undefined) {
                 res.status(401).json({ message: 'Not authorized' });
             } else {
+                let bookObject = {...book._doc}
+                console.log(bookObject);
+
                 console.log("book.ratings.find(r => r.userId == req.auth.userId)");
-                book.ratings.push(bookObject);
-                book.updateOne()
-                    .then(() => res.status(200).json({ message: 'Objet modifié!' }))
+                let ratings = [...book.ratings]
+                console.log("ratings");
+                console.log(ratings);
+                ratings.push({userId:ratingObject.userId,grade:ratingObject.rating })
+                
+                bookObject.ratings = [...ratings];
+                console.log(bookObject);
+
+                Book.updateOne({ _id: req.params.id}, { ...bookObject, _id: req.params.id})
+                    .then((book) => res.status(200).json(book))
                     .catch(error => res.status(401).json({ error }));
             }
             // if (book.userId != req.auth.userId) {

@@ -11,6 +11,6 @@ router.get("/bestrating", bookCtr.getBestratingBook);
 router.post("/",auth, multer, bookCtr.createBook);
 router.put("/:id",auth, multer, bookCtr.updateBook);
 router.delete("/:id", bookCtr.deleteBook);
-router.post("/:id/rating", bookCtr.ratingBook);
+router.post("/:id/rating",auth, bookCtr.ratingBook);
 
 module.exports = router;

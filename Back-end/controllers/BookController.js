@@ -33,13 +33,22 @@ exports.getOneBook = (req, res, next) => {
  */
 exports.getBestratingBook = (req, res, next) => {
 
+    Book.find()
+        .then((books) => {
+            let listBook = [...books];
+            let listBookSort = listBook.sort((a,b)=>parseInt(b.averageRating) - parseInt(a.averageRating));
+            listBookSort.splice(3)
+            console.log(listBookSort.length);
+
+            res.status(200).json(listBookSort);
+        
+        })
+        .catch(error => res.status(500).json({ error }));
 }
 
 
-exports.createBook = (req, res, next) => {
+exports.createBook = async (req, res, next) => {
 
-    console.log("createBook")
-    console.log(req.body)
     const bookObject = JSON.parse(req.body.book);
     delete bookObject._id;
     delete bookObject.userId;
@@ -53,9 +62,11 @@ exports.createBook = (req, res, next) => {
     book.save()
         .then(() => res.status(201).json({ message: 'Objet enregistré !' }))
         .catch(error => res.status(400).json({ error }));
+
 }
 
-exports.updateBook = (req, res, next) => {
+exports.updateBook = async (req, res, next) => {
+
     const bookObject = req.file ? {
         ...JSON.parse(req.body.book),
         imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`
@@ -69,6 +80,9 @@ exports.updateBook = (req, res, next) => {
             if (book.userId != req.auth.userId) {
                 res.status(401).json({ message: 'Not authorized' });
             } else {
+                const filename = book.imageUrl.split('/images/')[1];
+                fs.unlink(`images/${filename}`, () => {                
+                });
                 Book.updateOne({ _id: req.params.id }, { ...bookObject, _id: req.params.id })
                     .then(() => res.status(200).json({ message: 'Objet modifié!' }))
                     .catch(error => res.status(401).json({ error }));
@@ -80,6 +94,24 @@ exports.updateBook = (req, res, next) => {
 }
 
 exports.deleteBook = (req, res, next) => {
+
+    Book.findOne({ _id: req.params.id })
+        .then(book => {
+
+            if (book.userId != req.auth.userId) {
+                res.status(401).json({ message: 'Not authorized' });
+            } else {
+                const filename = book.imageUrl.split('/images/')[1];
+                fs.unlink(`images/${filename}`, () => {
+                    book.deleteOne({ _id: req.params.id })
+                        .then(() => { res.status(200).json({ message: 'Objet supprimé !' }) })
+                        .catch(error => res.status(401).json({ error }));
+                });
+            }
+        })
+        .catch(error => {
+            res.status(500).json({ error });
+        });
 
 }
 
@@ -97,13 +129,8 @@ jour, et le livre renvoyé en réponse de la requête.
  * @param {*} next 
  */
 exports.ratingBook = (req, res, next) => {
-    console.log("req.bodyratingBook")
-    console.log(req.body)
 
     const ratingObject = { ...req.body };
-
-    console.log("req.params.id");
-    console.log(req.params.id);
 
     Book.findOne({ _id: req.params.id })
         .then((book) => {
@@ -112,29 +139,22 @@ exports.ratingBook = (req, res, next) => {
             if (book.ratings.find(r => r.userId == req.auth.userId) != undefined) {
                 res.status(401).json({ message: 'Not authorized' });
             } else {
-                let bookObject = {...book._doc}
-                console.log(bookObject);
+                let bookObject = { ...book._doc };
+                let ratings = [...book.ratings];             
+                ratings.push({ userId: ratingObject.userId, grade: ratingObject.rating })
 
-                console.log("book.ratings.find(r => r.userId == req.auth.userId)");
-                let ratings = [...book.ratings]
-                console.log("ratings");
-                console.log(ratings);
-                ratings.push({userId:ratingObject.userId,grade:ratingObject.rating })
-                
-                bookObject.ratings = [...ratings];
-                console.log(bookObject);
+                let som = ratings.reduce((som, data)=> som+data.grade,0);
+                let averageRating = som/ratings.length;
 
-                Book.updateOne({ _id: req.params.id}, { ...bookObject, _id: req.params.id})
-                    .then((book) => res.status(200).json(book))
+                Book.updateOne({ _id: req.params.id }, { ...bookObject, _id: req.params.id,ratings:[...ratings],averageRating})
+                    .then(() => {
+                        Book.findOne({ _id: req.params.id })
+                        .then((book) => res.status(200).json(book))
+                        .catch(error => res.status(400).json({ error }));        
+                    })
                     .catch(error => res.status(401).json({ error }));
             }
-            // if (book.userId != req.auth.userId) {
-            //     res.status(401).json({ message : 'Not authorized'});
-            // } else {
-            //     Book.updateOne({ _id: req.params.id}, { ...bookObject, _id: req.params.id})
-            //     .then(() => res.status(200).json({message : 'Objet modifié!'}))
-            //     .catch(error => res.status(401).json({ error }));
-            // }
+           
         })
         .catch((error) => {
             res.status(400).json({ error });
